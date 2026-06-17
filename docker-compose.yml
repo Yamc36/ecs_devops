@@ -1,0 +1,78 @@
+version: '3.8'
+services:
+  app-spring:
+    build:
+      context: ./
+    container_name: mi-spring-app
+    working_dir: /app
+    command: java -jar /app/app.jar
+    environment:
+      - DB_HOST=localhost
+      - DB_PORT= 3306
+      - DB_NAME= mi_bd
+      - DB_PASSWOR= 12345
+      - DB_USER= root 
+    volumes:
+      - ./logs:/app/logs
+    ports:
+    # Puerto host:contenedor
+      - "8080:8080"
+    networks:
+      - monitoring-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+  loki:
+    image: grafana/loki:2.9.0
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - monitoring-net
+  promtail:
+    image: grafana/promtail:2.9.0
+    volumes:
+      - ./promtail/promtail-config.yml:/etc/promtail/config.yml
+      - ./logs:/var/log/spring # Mapea la carpeta de logs de tu app
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - monitoring-net
+  tempo:
+    image: grafana/tempo:latest
+    container_name: tempo
+    command: [ "-config.file=/etc/tempo.yaml" ] # <-- Faltaba indicarle que lea el archivo
+    volumes:
+      - ./tempo/tempo.yaml:/etc/tempo.yaml     # <-- Faltaba el mapeo del archivo local
+    ports:
+      - "3200:3200"  # Grafana UI/API interna de Tempo
+      - "4317:4317"  # OTLP gRPC Ingest
+      - "4318:4318"  # OTLP HTTP Ingest (El que mapea Spring Boot)
+    networks:
+      - monitoring-net
+  # prometheus:
+  #   image: prom/prometheus:latest
+  #   container_name: prometheus
+  #   volumes:
+  #   # Inyectamos nuestra configuración personalizada
+  #   - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+  #   ports:
+  #   - "9090:9090"
+  #   networks:
+  #   - monitoring-net
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    environment:
+    - GF_SECURITY_ADMIN_USER=admin
+    - GF_SECURITY_ADMIN_PASSWORD=admin
+    ports:
+    - "3000:3000"
+    # depends_on:
+    # - prometheus
+    networks:
+    - monitoring-net
+networks:
+  monitoring-net:
+    driver: bridge
