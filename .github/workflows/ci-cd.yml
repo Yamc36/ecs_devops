@@ -21,7 +21,7 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v1
         
       - name: Build imagen Frontend y push a ECR
-        run: 
+        run: |
           docker build -t rent-car .
           docker tag rent-car:latest \
             ${{ secrets.ECR_REPO_URL_FRONTEND }}:latest
